@@ -517,7 +517,7 @@ impl<'probe> Armv8a<'probe> {
                 // SP
                 self.prepare_for_clobber(0)?;
 
-                // MRS SP_EL0, X0
+                // MRS X0, SP_EL0
                 let instruction = aarch64::build_mrs(3, 0, 4, 1, 0, 0);
                 self.execute_instruction(instruction)?;
 
@@ -531,7 +531,7 @@ impl<'probe> Armv8a<'probe> {
                 // PC, must access via x0
                 self.prepare_for_clobber(0)?;
 
-                // MRS DLR_EL0, X0
+                // MRS X0, DLR_EL0
                 let instruction = aarch64::build_mrs(3, 3, 4, 5, 1, 0);
                 self.execute_instruction(instruction)?;
 
@@ -545,7 +545,7 @@ impl<'probe> Armv8a<'probe> {
                 // PSR
                 self.prepare_for_clobber(0)?;
 
-                // MRS DSPSR_EL0, X0
+                // MRS X0, DSPSR_EL0
                 let instruction = aarch64::build_mrs(3, 3, 4, 5, 0, 0);
                 self.execute_instruction(instruction)?;
 
@@ -581,7 +581,7 @@ impl<'probe> Armv8a<'probe> {
                 // FPSR
                 self.prepare_for_clobber(0)?;
 
-                // MRS FPSR, X0
+                // MRS X0, FPSR
                 let instruction = aarch64::build_mrs(3, 3, 4, 4, 1, 0);
                 self.execute_instruction(instruction)?;
 
@@ -595,7 +595,7 @@ impl<'probe> Armv8a<'probe> {
                 // FPCR
                 self.prepare_for_clobber(0)?;
 
-                // MRS FPCR, X0
+                // MRS X0, FPCR
                 let instruction = aarch64::build_mrs(3, 3, 4, 4, 0, 0);
                 self.execute_instruction(instruction)?;
 
