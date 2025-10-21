@@ -169,6 +169,7 @@ impl<'probe> Armv8a<'probe> {
 
     /// Execute an instruction on the CPU and return the result
     fn execute_instruction_with_result_64(&mut self, instruction: u32) -> Result<u64, Error> {
+        println!("exec instruction");
         // Run instruction
         let mut edscr = self.execute_instruction(instruction)?;
 
@@ -179,11 +180,11 @@ impl<'probe> Armv8a<'probe> {
         }
 
         // Read result
-        let address = Dbgdtrrx::get_mmio_address_from_base(self.base_address)?;
-        let mut result: u64 = (self.memory.read_word_32(address)? as u64) << 32;
-
         let address = Dbgdtrtx::get_mmio_address_from_base(self.base_address)?;
-        result |= self.memory.read_word_32(address)? as u64;
+        let mut result = self.memory.read_word_32(address)? as u64;
+
+        let address = Dbgdtrrx::get_mmio_address_from_base(self.base_address)?;
+        result |= (self.memory.read_word_32(address)? as u64) << 32;
 
         Ok(result)
     }
@@ -317,6 +318,7 @@ impl<'probe> Armv8a<'probe> {
             {
                 match i {
                     0..=30 => {
+                        println!("write back registers: reg{} {:?}",i, val);
                         self.set_reg_value(i, val.try_into()?)?;
                     }
                     31 => {
@@ -377,10 +379,18 @@ impl<'probe> Armv8a<'probe> {
 
     /// Save register if needed before it gets clobbered by instruction execution
     fn prepare_for_clobber(&mut self, reg: u16) -> Result<(), Error> {
-        if self.state.register_cache[reg as usize].is_none() {
+        if let Some(val) = &mut self.state.register_cache[reg as usize] {
+            if reg == 1 {
+                println!("clobber 1: {:?}", val.0);
+            }
+            // Mark reg as needing writeback
+            val.1 = true;
+        } else {
             // cache reg since we're going to clobber it
             let val = self.read_core_reg(RegisterId(reg))?;
-
+            if reg == 1 {
+                println!("clobber 1: {:?}", val);
+            }
             // Mark reg as needing writeback
             self.state.register_cache[reg as usize] = Some((val, true));
         }
@@ -511,9 +521,12 @@ impl<'probe> Armv8a<'probe> {
 
                 let reg_value = self.execute_instruction_with_result_64(instruction)?;
 
+                println!("read_core_reg_64 reg{}: {}",reg_num, reg_value);
                 Ok(reg_value.into())
             }
             31 => {
+                println!("sp");
+        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
                 // SP
                 self.prepare_for_clobber(0)?;
 
@@ -528,6 +541,8 @@ impl<'probe> Armv8a<'probe> {
                 Ok(pc.into())
             }
             32 => {
+                println!("pc");
+        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
                 // PC, must access via x0
                 self.prepare_for_clobber(0)?;
 
@@ -538,46 +553,54 @@ impl<'probe> Armv8a<'probe> {
                 // Read from x0
                 let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
                 let sp = self.execute_instruction_with_result_64(instruction)?;
-
+                println!("pc info: {}", sp);
                 Ok(sp.into())
             }
             33 => {
+                println!("psr");
+        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
                 // PSR
-                self.prepare_for_clobber(0)?;
+                // self.prepare_for_clobber(0)?;
 
-                // MRS X0, DSPSR_EL0
-                let instruction = aarch64::build_mrs(3, 3, 4, 5, 0, 0);
-                self.execute_instruction(instruction)?;
+                // // MRS X0, DSPSR_EL0
+                // let instruction = aarch64::build_mrs(3, 3, 4, 5, 0, 0);
+                // self.execute_instruction(instruction)?;
 
-                // Read from x0
-                let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
-                let psr: u32 = self.execute_instruction_with_result_64(instruction)? as u32;
+                // // Read from x0
+                // let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
+                // let psr: u32 = self.execute_instruction_with_result_64(instruction)? as u32;
 
-                Ok(psr.into())
+                // Ok(psr.into())
+                Ok(0u64.into())
             }
             34..=65 => {
-                // v0-v31
-                self.prepare_for_clobber(0)?;
+                println!("{}",reg_num);
+        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
+        //         // v0-v31
+        //         self.prepare_for_clobber(0)?;
 
-                // MOV x0, v<x>.d[0]
-                let instruction = aarch64::build_ins_fp_to_gp(0, reg_num - 34, 0);
-                self.execute_instruction(instruction)?;
+        //         // MOV x0, v<x>.d[0]
+        //         let instruction = aarch64::build_ins_fp_to_gp(0, reg_num - 34, 0);
+        //         self.execute_instruction(instruction)?;
 
-                // Read from x0
-                let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
-                let mut value: u128 = self.execute_instruction_with_result_64(instruction)? as u128;
+        //         // Read from x0
+        //         let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
+        //         let mut value: u128 = self.execute_instruction_with_result_64(instruction)? as u128;
 
-                // MOV x0, v<x>.d[1]
-                let instruction = aarch64::build_ins_fp_to_gp(0, reg_num - 34, 1);
-                self.execute_instruction(instruction)?;
+        //         // MOV x0, v<x>.d[1]
+        //         let instruction = aarch64::build_ins_fp_to_gp(0, reg_num - 34, 1);
+        //         self.execute_instruction(instruction)?;
 
-                // Read from x0
-                let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
-                value |= (self.execute_instruction_with_result_64(instruction)? as u128) << 64;
+        //         // Read from x0
+        //         let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
+        //         value |= (self.execute_instruction_with_result_64(instruction)? as u128) << 64;
 
-                Ok(value.into())
+        //         Ok(value.into())
+                Ok(0u64.into())
             }
             66 => {
+                println!("fpsr");
+        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
                 // FPSR
                 self.prepare_for_clobber(0)?;
 
@@ -592,6 +615,8 @@ impl<'probe> Armv8a<'probe> {
                 Ok(fpsr.into())
             }
             67 => {
+                println!("fpcr");
+        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
                 // FPCR
                 self.prepare_for_clobber(0)?;
 
@@ -621,11 +646,12 @@ impl<'probe> Armv8a<'probe> {
             self.halt(Duration::from_millis(100))?;
         }
 
-        let result = f(self);
+        let result: Result<R, Error> = f(self);
 
         // restore halt status
         if !original_halt_status {
             self.run()?;
+            self.reset_register_cache();
         }
         result
     }
@@ -799,6 +825,7 @@ impl<'probe> Armv8a<'probe> {
         Ok(())
     }
 
+    // TODO check endianness
     fn write_cpu_memory_fast(&mut self, address: u64, data: &[u8]) -> Result<(), Error> {
         self.with_core_halted(|armv8a| {
             let (prefix, aligned, suffix) = armv8a.aligned_to_32(address, data);
@@ -1018,6 +1045,7 @@ impl<'probe> Armv8a<'probe> {
 
 impl CoreInterface for Armv8a<'_> {
     fn wait_for_core_halted(&mut self, timeout: Duration) -> Result<(), Error> {
+        println!("{}:{}: start wait_for_core_halted", file!(), line!());
         // Wait until halted state is active again.
         let start = Instant::now();
 
@@ -1033,6 +1061,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn core_halted(&mut self) -> Result<bool, Error> {
+        println!("{}:{}: start core_halted", file!(), line!());
         let address = Edscr::get_mmio_address_from_base(self.base_address)?;
         let edscr = Edscr(self.memory.read_word_32(address)?);
 
@@ -1040,6 +1069,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn status(&mut self) -> Result<crate::core::CoreStatus, Error> {
+        println!("{}:{}: start status", file!(), line!());
         // determine current state
         let address = Edscr::get_mmio_address_from_base(self.base_address)?;
         let edscr = Edscr(self.memory.read_word_32(address)?);
@@ -1063,6 +1093,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn halt(&mut self, timeout: Duration) -> Result<CoreInformation, Error> {
+        println!("{}:{}: start halt", file!(), line!());
         if !matches!(self.state.current_state, CoreStatus::Halted(_)) {
             // Ungate halt CTI channel
             let mut cti_gate = CtiGate(0);
@@ -1104,12 +1135,10 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn run(&mut self) -> Result<(), Error> {
+        println!("{}:{}: start run", file!(), line!());
         if matches!(self.state.current_state, CoreStatus::Running) {
             return Ok(());
         }
-
-        // set writeback values
-        self.writeback_registers()?;
 
         self.ack_cti_halt()?;
 
@@ -1147,10 +1176,15 @@ impl CoreInterface for Armv8a<'_> {
         let address = CtiGate::get_mmio_address_from_base(self.cti_address)?;
         self.memory.write_word_32(address, cti_gate.into())?;
 
+        // set writeback values
+        println!("write back reg\n\n\n");
+        self.writeback_registers()?;
+
         Ok(())
     }
 
     fn reset(&mut self) -> Result<(), Error> {
+        println!("{}:{}: start reset", file!(), line!());
         self.sequence.reset_system(
             &mut *self.memory,
             crate::CoreType::Armv8a,
@@ -1168,6 +1202,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn reset_and_halt(&mut self, timeout: Duration) -> Result<CoreInformation, Error> {
+        println!("{}:{}: start reset_and_halt", file!(), line!());
         self.sequence.reset_catch_set(
             &mut *self.memory,
             crate::CoreType::Armv8a,
@@ -1204,6 +1239,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn step(&mut self) -> Result<CoreInformation, Error> {
+        println!("{}:{}: start step", file!(), line!());
         // Load EDECR, set SS bit for step mode
         let edecr_address = Edecr::get_mmio_address_from_base(self.base_address)?;
         let mut edecr = Edecr(self.memory.read_word_32(edecr_address)?);
@@ -1211,11 +1247,14 @@ impl CoreInterface for Armv8a<'_> {
         edecr.set_ss(true);
         self.memory.write_word_32(edecr_address, edecr.into())?;
 
+        println!("{}:{}: reg1 gbefore running val: {:?}",file!(), line!(), self.read_core_reg_64(1));
         // Resume
         self.run()?;
 
+        println!("running...\n\n");
         // Wait for halt
         self.wait_for_core_halted(Duration::from_millis(100))?;
+        println!("{}:{}: reg1 after running val: {:?}",file!(), line!(), self.read_core_reg_64(1));
 
         // Reset EDECR
         edecr.set_ss(false);
@@ -1231,12 +1270,14 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn read_core_reg(&mut self, address: RegisterId) -> Result<RegisterValue, Error> {
+        println!("{}:{}: start read_core_reg", file!(), line!());
         let reg_num = address.0;
 
         // check cache
         if (reg_num as usize) < self.state.register_cache.len()
             && let Some(cached_result) = self.state.register_cache[reg_num as usize]
         {
+            println!("cached");
             return Ok(cached_result.0);
         }
 
@@ -1256,6 +1297,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn write_core_reg(&mut self, address: RegisterId, value: RegisterValue) -> Result<(), Error> {
+        println!("{}:{}: start write_core_reg", file!(), line!());
         let reg_num = address.0;
         let current_mode = if self.state.is_64_bit { 64 } else { 32 };
 
@@ -1270,6 +1312,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn available_breakpoint_units(&mut self) -> Result<u32, Error> {
+        println!("{}:{}: start available_breakpoint_units", file!(), line!());
         if self.num_breakpoints.is_none() {
             let address = Eddfr::get_mmio_address_from_base(self.base_address)?;
             let eddfr = Eddfr(self.memory.read_word_32(address)?);
@@ -1281,6 +1324,7 @@ impl CoreInterface for Armv8a<'_> {
 
     /// See docs on the [`CoreInterface::hw_breakpoints`] trait
     fn hw_breakpoints(&mut self) -> Result<Vec<Option<u64>>, Error> {
+        println!("{}:{}: start hw_breakpoints", file!(), line!());
         let mut breakpoints = vec![];
         let num_hw_breakpoints = self.available_breakpoint_units()? as usize;
 
@@ -1304,11 +1348,13 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn enable_breakpoints(&mut self, _state: bool) -> Result<(), Error> {
+        println!("{}:{}: start enable_breakpoints", file!(), line!());
         // Breakpoints are always on with v7-A
         Ok(())
     }
 
     fn set_hw_breakpoint(&mut self, bp_unit_index: usize, addr: u64) -> Result<(), Error> {
+        println!("{}:{}: start set_hw_breakpoint", file!(), line!());
         let bp_value_addr =
             Dbgbvr::get_mmio_address_from_base(self.base_address)? + (bp_unit_index * 16) as u64;
         let bp_control_addr =
@@ -1337,6 +1383,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn clear_hw_breakpoint(&mut self, bp_unit_index: usize) -> Result<(), Error> {
+        println!("{}:{}: start clear_hw_breakpoint", file!(), line!());
         let bp_value_addr =
             Dbgbvr::get_mmio_address_from_base(self.base_address)? + (bp_unit_index * 16) as u64;
         let bp_control_addr =
@@ -1350,6 +1397,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn registers(&self) -> &'static CoreRegisters {
+        println!("{}:{}: start registers", file!(), line!());
         if self.state.is_64_bit {
             &AARCH64_CORE_REGISTERS
         } else {
@@ -1358,6 +1406,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn program_counter(&self) -> &'static CoreRegister {
+        println!("{}:{}: start program_counter", file!(), line!());
         if self.state.is_64_bit {
             &super::registers::aarch64::PC
         } else {
@@ -1366,6 +1415,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn frame_pointer(&self) -> &'static CoreRegister {
+        println!("{}:{}: start frame_pointer", file!(), line!());
         if self.state.is_64_bit {
             &super::registers::aarch64::FP
         } else {
@@ -1374,6 +1424,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn stack_pointer(&self) -> &'static CoreRegister {
+        println!("{}:{}: start stack_pointer", file!(), line!());
         if self.state.is_64_bit {
             &super::registers::aarch64::SP
         } else {
@@ -1382,6 +1433,7 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn return_address(&self) -> &'static CoreRegister {
+        println!("{}:{}: start return_address", file!(), line!());
         if self.state.is_64_bit {
             &super::registers::aarch64::RA
         } else {
@@ -1390,18 +1442,22 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn hw_breakpoints_enabled(&self) -> bool {
+        println!("{}:{}: start hw_breakpoints_enabled", file!(), line!());
         true
     }
 
     fn architecture(&self) -> Architecture {
-        Architecture::Arm
+        println!("{}:{}: start architecture", file!(), line!());
+        Architecture::Armback_
     }
 
     fn core_type(&self) -> CoreType {
+        println!("{}:{}: start core_type", file!(), line!());
         CoreType::Armv8a
     }
 
     fn instruction_set(&mut self) -> Result<InstructionSet, Error> {
+        println!("{}:{}: start instruction_set", file!(), line!());
         if self.state.is_64_bit {
             Ok(InstructionSet::A64)
         } else {
@@ -1416,17 +1472,20 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn fpu_support(&mut self) -> Result<bool, crate::error::Error> {
+        println!("{}:{}: start fpu_support", file!(), line!());
         // Always available for v8-a
         Ok(true)
     }
 
     fn floating_point_register_count(&mut self) -> Result<usize, crate::error::Error> {
+        println!("{}:{}: start floating_point_register_count", file!(), line!());
         // Always available for v8-a
         Ok(self.state.fp_reg_count)
     }
 
     #[tracing::instrument(skip(self))]
     fn reset_catch_set(&mut self) -> Result<(), Error> {
+        println!("{}:{}: start reset_catch_set", file!(), line!());
         self.sequence.reset_catch_set(
             &mut *self.memory,
             CoreType::Armv8a,
@@ -1438,6 +1497,7 @@ impl CoreInterface for Armv8a<'_> {
 
     #[tracing::instrument(skip(self))]
     fn reset_catch_clear(&mut self) -> Result<(), Error> {
+        println!("{}:{}: start reset_catch_clear", file!(), line!());
         self.sequence.reset_catch_clear(
             &mut *self.memory,
             CoreType::Armv8a,
@@ -1449,6 +1509,7 @@ impl CoreInterface for Armv8a<'_> {
 
     #[tracing::instrument(skip(self))]
     fn debug_core_stop(&mut self) -> Result<(), Error> {
+        println!("{}:{}: start debug_core_stop", file!(), line!());
         if matches!(self.state.current_state, CoreStatus::Halted(_)) {
             // We may have clobbered registers we wrote during debugging
             // Best effort attempt to put them back before we exit
@@ -1462,16 +1523,19 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn is_64_bit(&self) -> bool {
+        println!("{}:{}: start is_64_bit", file!(), line!());
         self.state.is_64_bit
     }
 }
 
 impl MemoryInterface for Armv8a<'_> {
     fn supports_native_64bit_access(&mut self) -> bool {
+        println!("Entered supports_native_64bit_access");
         self.state.is_64_bit
     }
 
     fn read_word_64(&mut self, address: u64) -> Result<u64, Error> {
+        println!("Entered read_word_64");
         if self.state.is_64_bit {
             self.read_cpu_memory_aarch64_64(address)
         } else {
@@ -1483,6 +1547,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn read_word_32(&mut self, address: u64) -> Result<u32, Error> {
+        println!("Entered read_word_32");
         if self.state.is_64_bit {
             self.read_cpu_memory_aarch64_32(address)
         } else {
@@ -1491,6 +1556,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn read_word_16(&mut self, address: u64) -> Result<u16, Error> {
+        println!("Entered read_word_16");
         // Find the word this is in and its byte offset
         let byte_offset = address % 4;
         let word_start = address - byte_offset;
@@ -1503,6 +1569,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn read_word_8(&mut self, address: u64) -> Result<u8, Error> {
+        println!("Entered read_word_8");
         // Find the word this is in and its byte offset
         let byte_offset = address % 4;
         let word_start = address - byte_offset;
@@ -1515,6 +1582,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn read_64(&mut self, address: u64, data: &mut [u64]) -> Result<(), Error> {
+        println!("Entered read_64");
         if self.state.is_64_bit {
             let (_prefix, data, _suffix) = unsafe { data.align_to_mut::<u8>() };
             self.read_cpu_memory_aarch64_fast(address, data)?;
@@ -1528,6 +1596,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn read_32(&mut self, address: u64, data: &mut [u32]) -> Result<(), Error> {
+        println!("Entered read_32");
         if self.state.is_64_bit {
             let (_prefix, data, _suffix) = unsafe { data.align_to_mut::<u8>() };
             self.read_cpu_memory_aarch64_fast(address, data)?;
@@ -1541,6 +1610,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn read_16(&mut self, address: u64, data: &mut [u16]) -> Result<(), Error> {
+        println!("Entered read_16");
         if self.state.is_64_bit {
             let (_prefix, data, _suffix) = unsafe { data.align_to_mut::<u8>() };
             self.read_cpu_memory_aarch64_fast(address, data)?;
@@ -1554,6 +1624,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn read_8(&mut self, address: u64, data: &mut [u8]) -> Result<(), Error> {
+        println!("Entered read_8");
         if self.state.is_64_bit {
             self.read_cpu_memory_aarch64_fast(address, data)?;
         } else {
@@ -1566,6 +1637,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn write_word_64(&mut self, address: u64, data: u64) -> Result<(), Error> {
+        println!("Entered write_word_64");
         if self.state.is_64_bit {
             self.write_cpu_memory_aarch64_64(address, data)
         } else {
@@ -1578,6 +1650,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn write_word_32(&mut self, address: u64, data: u32) -> Result<(), Error> {
+        println!("Entered write_word_32");
         if self.state.is_64_bit {
             self.write_cpu_memory_aarch64_32(address, data)
         } else {
@@ -1586,6 +1659,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn write_word_16(&mut self, address: u64, data: u16) -> Result<(), Error> {
+        println!("Entered write_word_16");
         // Find the word this is in and its byte offset
         let byte_offset = address % 4;
         let word_start = address - byte_offset;
@@ -1601,6 +1675,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn write_word_8(&mut self, address: u64, data: u8) -> Result<(), Error> {
+        println!("Entered write_word_8");
         // Find the word this is in and its byte offset
         let byte_offset = address % 4;
         let word_start = address - byte_offset;
@@ -1614,6 +1689,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn write_64(&mut self, address: u64, data: &[u64]) -> Result<(), Error> {
+        println!("Entered write_64");
         // Note that the fast write path splits data into 32-bit words and does not guarantee 64-bit bus accesses.
         let (_prefix, data, _suffix) = unsafe { data.align_to::<u8>() };
         self.write_cpu_memory_fast(address, data)?;
@@ -1622,6 +1698,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn write_32(&mut self, address: u64, data: &[u32]) -> Result<(), Error> {
+        println!("Entered write_32");
         let (_prefix, data, _suffix) = unsafe { data.align_to::<u8>() };
         self.write_cpu_memory_fast(address, data)?;
 
@@ -1629,6 +1706,7 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn write_16(&mut self, address: u64, data: &[u16]) -> Result<(), Error> {
+        println!("Entered write_16");
         let (_prefix, data, _suffix) = unsafe { data.align_to::<u8>() };
         self.write_cpu_memory_fast(address, data)?;
 
@@ -1636,16 +1714,19 @@ impl MemoryInterface for Armv8a<'_> {
     }
 
     fn write_8(&mut self, address: u64, data: &[u8]) -> Result<(), Error> {
+        println!("Entered write_8");
         self.write_cpu_memory_fast(address, data)?;
 
         Ok(())
     }
 
     fn supports_8bit_transfers(&self) -> Result<bool, Error> {
+        println!("Entered supports_8bit_transfers");
         Ok(false)
     }
 
     fn flush(&mut self) -> Result<(), Error> {
+        println!("Entered flush");
         // Nothing to do - this runs through the CPU which automatically handles any caching
         Ok(())
     }
@@ -1888,11 +1969,11 @@ mod test {
             edscr.into(),
         );
         probe.expected_read(
-            Dbgdtrrx::get_mmio_address_from_base(TEST_BASE_ADDRESS).unwrap(),
+            Dbgdtrtx::get_mmio_address_from_base(TEST_BASE_ADDRESS).unwrap(),
             (value >> 32) as u32,
         );
         probe.expected_read(
-            Dbgdtrtx::get_mmio_address_from_base(TEST_BASE_ADDRESS).unwrap(),
+            Dbgdtrrx::get_mmio_address_from_base(TEST_BASE_ADDRESS).unwrap(),
             value as u32,
         );
     }

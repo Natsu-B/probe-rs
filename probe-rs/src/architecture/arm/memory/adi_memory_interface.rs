@@ -36,6 +36,7 @@ where
         interface: &'interface mut APA,
         access_port_address: &FullyQualifiedApAddress,
     ) -> Result<ADIMemoryInterface<'interface, APA>, ArmError> {
+        println!("Entering ADIMemoryInterface::new");
         let memory_ap = MemoryAp::new(interface, access_port_address)?;
         Ok(Self {
             interface,
@@ -54,6 +55,7 @@ where
     /// The address where the read should be performed at has to be a multiple of 8.
     /// Returns `ArmError::MemoryNotAligned` if this does not hold true.
     fn read_64(&mut self, mut address: u64, mut data: &mut [u64]) -> Result<(), ArmError> {
+        println!("Entering ADIMemoryInterface::read_64");
         if data.is_empty() {
             return Ok(());
         }
@@ -107,6 +109,7 @@ where
     /// The address where the read should be performed at has to be a multiple of 4.
     /// Returns `ArmError::MemoryNotAligned` if this does not hold true.
     fn read_32(&mut self, mut address: u64, mut data: &mut [u32]) -> Result<(), ArmError> {
+        println!("Entering ADIMemoryInterface::read_32");
         if data.is_empty() {
             return Ok(());
         }
@@ -149,6 +152,7 @@ where
     /// The address where the read should be performed at has to be a multiple of 2.
     /// Returns `ArmError::MemoryNotAligned` if this does not hold true.
     fn read_16(&mut self, mut address: u64, mut data: &mut [u16]) -> Result<(), ArmError> {
+        println!("Entering ADIMemoryInterface::read_16");
         if self.memory_ap.supports_only_32bit_data_size() {
             return Err(ArmError::UnsupportedTransferWidth(16));
         }
@@ -203,6 +207,7 @@ where
     ///
     /// The number of words read is `data.len()`.
     fn read_8(&mut self, mut address: u64, mut data: &mut [u8]) -> Result<(), ArmError> {
+        println!("Entering ADIMemoryInterface::read_8");
         if self.memory_ap.supports_only_32bit_data_size() {
             return Err(ArmError::UnsupportedTransferWidth(8));
         }
@@ -250,6 +255,7 @@ where
     }
 
     fn read(&mut self, address: u64, data: &mut [u8]) -> Result<(), ArmError> {
+        println!("Entering ADIMemoryInterface::read");
         let len = data.len();
         if address.is_multiple_of(4) && len.is_multiple_of(4) {
             let mut buffer = vec![0u32; len / 4];
@@ -277,6 +283,7 @@ where
     /// The address where the write should be performed at has to be a multiple of 8.
     /// Returns `ArmError::MemoryNotAligned` if this does not hold true.
     fn write_64(&mut self, mut address: u64, mut data: &[u64]) -> Result<(), ArmError> {
+        println!("Entering ADIMemoryInterface::write_64");
         if !address.is_multiple_of(8) {
             return Err(ArmError::alignment_error(address, 8));
         }
@@ -335,6 +342,7 @@ where
     /// The address where the write should be performed at has to be a multiple of 4.
     /// Returns `ArmError::MemoryNotAligned` if this does not hold true.
     fn write_32(&mut self, mut address: u64, mut data: &[u32]) -> Result<(), ArmError> {
+        println!("Entering ADIMemoryInterface::write_32");
         if !address.is_multiple_of(4) {
             return Err(ArmError::alignment_error(address, 4));
         }
@@ -383,6 +391,7 @@ where
     /// The address where the write should be performed at has to be a multiple of 2.
     /// Returns `ArmError::MemoryNotAligned` if this does not hold true.
     fn write_16(&mut self, mut address: u64, mut data: &[u16]) -> Result<(), ArmError> {
+        println!("Entering ADIMemoryInterface::write_16");
         if self.memory_ap.supports_only_32bit_data_size() {
             return Err(ArmError::UnsupportedTransferWidth(16));
         }
@@ -439,6 +448,7 @@ where
     ///
     /// The number of words written is `data.len()`.
     fn write_8(&mut self, mut address: u64, mut data: &[u8]) -> Result<(), ArmError> {
+        println!("Entering ADIMemoryInterface::write_8");
         if self.memory_ap.supports_only_32bit_data_size() {
             return Err(ArmError::UnsupportedTransferWidth(8));
         }
@@ -491,16 +501,19 @@ where
 
     /// Flushes any pending commands when the underlying probe interface implements command queuing.
     fn flush(&mut self) -> Result<(), ArmError> {
+        println!("Entering ADIMemoryInterface::flush");
         self.interface.flush()
     }
 
     /// True if the memory ap supports 64 bit accesses which might be more efficient than issuing
     /// two 32bit transaction on the device’s memory bus.
     fn supports_native_64bit_access(&mut self) -> bool {
+        println!("Entering ADIMemoryInterface::supports_native_64bit_access");
         self.memory_ap.has_large_data_extension()
     }
 
     fn supports_8bit_transfers(&self) -> Result<bool, ArmError> {
+        println!("Entering ADIMemoryInterface::supports_8bit_transfers");
         Ok(!self.memory_ap.supports_only_32bit_data_size())
     }
 }
@@ -510,22 +523,27 @@ where
     APA: ApAccess + ArmDebugInterface,
 {
     fn base_address(&mut self) -> Result<u64, ArmError> {
+        println!("Entering ADIMemoryInterface::base_address");
         self.memory_ap.base_address(self.interface)
     }
 
     fn fully_qualified_address(&self) -> FullyQualifiedApAddress {
+        println!("Entering ADIMemoryInterface::fully_qualified_address");
         self.memory_ap.ap_address().clone()
     }
 
     fn get_arm_debug_interface(&mut self) -> Result<&mut dyn ArmDebugInterface, DebugProbeError> {
+        println!("Entering ADIMemoryInterface::get_arm_debug_interface");
         Ok(self.interface)
     }
 
     fn generic_status(&mut self) -> Result<CSW, ArmError> {
+        println!("Entering ADIMemoryInterface::generic_status");
         self.memory_ap.generic_status(self.interface)
     }
 
     fn update_core_status(&mut self, state: CoreStatus) {
+        println!("Entering ADIMemoryInterface::update_core_status");
         if let Some(probe) = self.interface.try_dap_probe_mut() {
             // Ignore errors setting the core status
             let _ = probe.core_status_notification(state);
