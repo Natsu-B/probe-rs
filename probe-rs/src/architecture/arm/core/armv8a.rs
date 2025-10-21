@@ -646,12 +646,11 @@ impl<'probe> Armv8a<'probe> {
             self.halt(Duration::from_millis(100))?;
         }
 
-        let result: Result<R, Error> = f(self);
+        let result = f(self);
 
         // restore halt status
         if !original_halt_status {
             self.run()?;
-            self.reset_register_cache();
         }
         result
     }
@@ -1448,7 +1447,7 @@ impl CoreInterface for Armv8a<'_> {
 
     fn architecture(&self) -> Architecture {
         println!("{}:{}: start architecture", file!(), line!());
-        Architecture::Armback_
+        Architecture::Arm
     }
 
     fn core_type(&self) -> CoreType {
@@ -1969,11 +1968,11 @@ mod test {
             edscr.into(),
         );
         probe.expected_read(
-            Dbgdtrtx::get_mmio_address_from_base(TEST_BASE_ADDRESS).unwrap(),
+            Dbgdtrrx::get_mmio_address_from_base(TEST_BASE_ADDRESS).unwrap(),
             (value >> 32) as u32,
         );
         probe.expected_read(
-            Dbgdtrrx::get_mmio_address_from_base(TEST_BASE_ADDRESS).unwrap(),
+            Dbgdtrtx::get_mmio_address_from_base(TEST_BASE_ADDRESS).unwrap(),
             value as u32,
         );
     }
