@@ -70,6 +70,8 @@ impl<'probe> Armv8a<'probe> {
         cti_address: u64,
         sequence: Arc<dyn ArmDebugSequence>,
     ) -> Result<Self, Error> {
+        // memoryがArmv8aを持っていたらinvalidなのでerrorをリターンしたい
+        // Armv8aを持っていると、step実行時のwriteback後に更に値が変化してしまってx0, x1が壊れる
         if !state.initialized() {
             // determine current state
             let address = Edscr::get_mmio_address_from_base(base_address)?;
@@ -337,6 +339,7 @@ impl<'probe> Armv8a<'probe> {
                         let instruction = aarch64::build_msr(3, 3, 4, 5, 1, 0);
                         self.execute_instruction(instruction)?;
                     }
+                    // TODO 33?
                     34..=65 => {
                         let val: u128 = val.try_into()?;
 
@@ -1140,6 +1143,9 @@ impl CoreInterface for Armv8a<'_> {
             return Ok(());
         }
 
+        println!("write back reg\n\n\n");
+        self.writeback_registers()?;
+
         self.ack_cti_halt()?;
 
         // Ungate restart CTI channel
@@ -1175,10 +1181,6 @@ impl CoreInterface for Armv8a<'_> {
 
         let address = CtiGate::get_mmio_address_from_base(self.cti_address)?;
         self.memory.write_word_32(address, cti_gate.into())?;
-
-        // set writeback values
-        println!("write back reg\n\n\n");
-        self.writeback_registers()?;
 
         Ok(())
     }
@@ -1448,7 +1450,7 @@ impl CoreInterface for Armv8a<'_> {
 
     fn architecture(&self) -> Architecture {
         println!("{}:{}: start architecture", file!(), line!());
-        Architecture::Armback_
+        Architecture::Arm
     }
 
     fn core_type(&self) -> CoreType {

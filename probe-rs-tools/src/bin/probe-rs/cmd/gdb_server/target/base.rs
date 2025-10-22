@@ -86,6 +86,10 @@ impl MultiThreadBase for RuntimeTarget<'_> {
         data: &mut [u8],
         tid: Tid,
     ) -> TargetResult<usize, Self> {
+        if start_addr.checked_add(data.len() as u64) == None {
+            // gdb側のバグで0xFFFFFFFFFFFFFFFCが送られてくる場合があるので、そのときはEFAULTを返す
+            return Err(TargetError::Errno(14));
+        }
         let mut session = self.session.lock();
         let mut core = session.core(tid.get() - 1).into_target_result()?;
 
