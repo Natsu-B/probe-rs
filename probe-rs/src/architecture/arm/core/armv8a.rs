@@ -988,8 +988,9 @@ impl<'probe> Armv8a<'probe> {
             .into());
         }
 
-        // Save x0
+        // Save x0, x1
         self.prepare_for_clobber(0)?;
+        self.prepare_for_clobber(1)?;
 
         // Load x0 with the address to read from
         self.set_reg_value(0, address)?;
