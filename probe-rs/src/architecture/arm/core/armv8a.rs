@@ -563,43 +563,41 @@ impl<'probe> Armv8a<'probe> {
                 println!("psr");
         println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
                 // PSR
-                // self.prepare_for_clobber(0)?;
+                self.prepare_for_clobber(0)?;
 
-                // // MRS X0, DSPSR_EL0
-                // let instruction = aarch64::build_mrs(3, 3, 4, 5, 0, 0);
-                // self.execute_instruction(instruction)?;
+                // MRS X0, DSPSR_EL0
+                let instruction = aarch64::build_mrs(3, 3, 4, 5, 0, 0);
+                self.execute_instruction(instruction)?;
 
-                // // Read from x0
-                // let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
-                // let psr: u32 = self.execute_instruction_with_result_64(instruction)? as u32;
+                // Read from x0
+                let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
+                let psr: u32 = self.execute_instruction_with_result_64(instruction)? as u32;
 
-                // Ok(psr.into())
-                Ok(0u64.into())
+                Ok(psr.into())
             }
             34..=65 => {
                 println!("{}",reg_num);
         println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
-        //         // v0-v31
-        //         self.prepare_for_clobber(0)?;
+                // v0-v31
+                self.prepare_for_clobber(0)?;
 
-        //         // MOV x0, v<x>.d[0]
-        //         let instruction = aarch64::build_ins_fp_to_gp(0, reg_num - 34, 0);
-        //         self.execute_instruction(instruction)?;
+                // MOV x0, v<x>.d[0]
+                let instruction = aarch64::build_ins_fp_to_gp(0, reg_num - 34, 0);
+                self.execute_instruction(instruction)?;
 
-        //         // Read from x0
-        //         let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
-        //         let mut value: u128 = self.execute_instruction_with_result_64(instruction)? as u128;
+                // Read from x0
+                let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
+                let mut value: u128 = self.execute_instruction_with_result_64(instruction)? as u128;
 
-        //         // MOV x0, v<x>.d[1]
-        //         let instruction = aarch64::build_ins_fp_to_gp(0, reg_num - 34, 1);
-        //         self.execute_instruction(instruction)?;
+                // MOV x0, v<x>.d[1]
+                let instruction = aarch64::build_ins_fp_to_gp(0, reg_num - 34, 1);
+                self.execute_instruction(instruction)?;
 
-        //         // Read from x0
-        //         let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
-        //         value |= (self.execute_instruction_with_result_64(instruction)? as u128) << 64;
+                // Read from x0
+                let instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
+                value |= (self.execute_instruction_with_result_64(instruction)? as u128) << 64;
 
-        //         Ok(value.into())
-                Ok(0u64.into())
+                Ok(value.into())
             }
             66 => {
                 println!("fpsr");
