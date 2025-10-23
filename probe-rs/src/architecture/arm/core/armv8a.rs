@@ -320,7 +320,7 @@ impl<'probe> Armv8a<'probe> {
             {
                 match i {
                     0..=30 => {
-                        println!("write back registers: reg{} {:?}",i, val);
+                        println!("write back registers: reg{} {:?}", i, val);
                         self.set_reg_value(i, val.try_into()?)?;
                     }
                     31 => {
@@ -524,12 +524,17 @@ impl<'probe> Armv8a<'probe> {
 
                 let reg_value = self.execute_instruction_with_result_64(instruction)?;
 
-                println!("read_core_reg_64 reg{}: {}",reg_num, reg_value);
+                println!("read_core_reg_64 reg{}: {}", reg_num, reg_value);
                 Ok(reg_value.into())
             }
             31 => {
                 println!("sp");
-        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
+                println!(
+                    "{}:{}: reg1: {:?}",
+                    file!(),
+                    line!(),
+                    self.read_core_reg_64(1)
+                );
                 // SP
                 self.prepare_for_clobber(0)?;
 
@@ -545,7 +550,12 @@ impl<'probe> Armv8a<'probe> {
             }
             32 => {
                 println!("pc");
-        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
+                println!(
+                    "{}:{}: reg1: {:?}",
+                    file!(),
+                    line!(),
+                    self.read_core_reg_64(1)
+                );
                 // PC, must access via x0
                 self.prepare_for_clobber(0)?;
 
@@ -561,7 +571,12 @@ impl<'probe> Armv8a<'probe> {
             }
             33 => {
                 println!("psr");
-        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
+                println!(
+                    "{}:{}: reg1: {:?}",
+                    file!(),
+                    line!(),
+                    self.read_core_reg_64(1)
+                );
                 // PSR
                 self.prepare_for_clobber(0)?;
 
@@ -576,8 +591,13 @@ impl<'probe> Armv8a<'probe> {
                 Ok(psr.into())
             }
             34..=65 => {
-                println!("{}",reg_num);
-        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
+                println!("{}", reg_num);
+                println!(
+                    "{}:{}: reg1: {:?}",
+                    file!(),
+                    line!(),
+                    self.read_core_reg_64(1)
+                );
                 // v0-v31
                 self.prepare_for_clobber(0)?;
 
@@ -601,7 +621,12 @@ impl<'probe> Armv8a<'probe> {
             }
             66 => {
                 println!("fpsr");
-        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
+                println!(
+                    "{}:{}: reg1: {:?}",
+                    file!(),
+                    line!(),
+                    self.read_core_reg_64(1)
+                );
                 // FPSR
                 self.prepare_for_clobber(0)?;
 
@@ -617,7 +642,12 @@ impl<'probe> Armv8a<'probe> {
             }
             67 => {
                 println!("fpcr");
-        println!("{}:{}: reg1: {:?}",file!(), line!(), self.read_core_reg_64(1));
+                println!(
+                    "{}:{}: reg1: {:?}",
+                    file!(),
+                    line!(),
+                    self.read_core_reg_64(1)
+                );
                 // FPCR
                 self.prepare_for_clobber(0)?;
 
@@ -698,6 +728,7 @@ impl<'probe> Armv8a<'probe> {
         address: u64,
         data: &mut [u8],
     ) -> Result<(), Error> {
+        println!("Entered read_cpu_memory_aarch64_bytes");
         self.with_core_halted(|armv8a| {
             // Save x0, x1
             armv8a.prepare_for_clobber(0)?;
@@ -958,6 +989,10 @@ impl<'probe> Armv8a<'probe> {
 
             // read aligned part
             armv8a.read_cpu_memory_aarch64_fast_inner(address, aligned)?;
+            println!(
+                "after read_cpu_memory_aarch64_fast_inner reg1 val: {:?}",
+                armv8a.read_core_reg_64(1)
+            );
             address += u64::try_from(aligned.len()).unwrap();
 
             // read unaligned part
@@ -976,6 +1011,11 @@ impl<'probe> Armv8a<'probe> {
         address: u64,
         data: &mut [u8],
     ) -> Result<(), Error> {
+        println!("Entered read_cpu_memory_aarch64_fast_inner");
+        println!(
+            "before read_cpu_memory_aarch64_fast_inner reg1 val: {:?}",
+            self.read_core_reg_64(1)
+        );
         // assume only call from read_cpu_memory_aarch64_fast
         if data.is_empty() {
             return Ok(());
@@ -999,6 +1039,7 @@ impl<'probe> Armv8a<'probe> {
         let msr_instruction = aarch64::build_msr(2, 3, 0, 4, 0, 0);
         let editr_address = Editr::get_mmio_address_from_base(self.base_address)?;
         self.memory.write_word_32(editr_address, msr_instruction)?;
+        // println!("while read_cpu_memory_aarch64_fast_inner reg1 val: {:?}", self.read_core_reg_64(1));
 
         // wait for TXfull == 1
         let edscr_address = Edscr::get_mmio_address_from_base(self.base_address)?;
@@ -1247,14 +1288,25 @@ impl CoreInterface for Armv8a<'_> {
         edecr.set_ss(true);
         self.memory.write_word_32(edecr_address, edecr.into())?;
 
-        println!("{}:{}: reg1 gbefore running val: {:?}",file!(), line!(), self.read_core_reg_64(1));
+        println!(
+            "{}:{}: reg1 gbefore running val: {:?}",
+            file!(),
+            line!(),
+            self.read_core_reg_64(1)
+        );
         // Resume
         self.run()?;
 
         println!("running...\n\n");
         // Wait for halt
         self.wait_for_core_halted(Duration::from_millis(100))?;
-        println!("{}:{}: reg1 after running val: {:?}",file!(), line!(), self.read_core_reg_64(1));
+        println!(
+            "{}:{}: after running val reg0: {:?},reg1: {:?}",
+            file!(),
+            line!(),
+            self.read_core_reg_64(0),
+            self.read_core_reg_64(1)
+        );
 
         // Reset EDECR
         edecr.set_ss(false);
@@ -1478,7 +1530,11 @@ impl CoreInterface for Armv8a<'_> {
     }
 
     fn floating_point_register_count(&mut self) -> Result<usize, crate::error::Error> {
-        println!("{}:{}: start floating_point_register_count", file!(), line!());
+        println!(
+            "{}:{}: start floating_point_register_count",
+            file!(),
+            line!()
+        );
         // Always available for v8-a
         Ok(self.state.fp_reg_count)
     }
@@ -1625,6 +1681,7 @@ impl MemoryInterface for Armv8a<'_> {
 
     fn read_8(&mut self, address: u64, data: &mut [u8]) -> Result<(), Error> {
         println!("Entered read_8");
+        println!("before read_8 reg1 val: {:?}", self.read_core_reg_64(1));
         if self.state.is_64_bit {
             self.read_cpu_memory_aarch64_fast(address, data)?;
         } else {
@@ -1632,6 +1689,7 @@ impl MemoryInterface for Armv8a<'_> {
                 *byte = self.read_word_8(address + (i as u64))?;
             }
         }
+        println!("after read_8 reg1 val: {:?}", self.read_core_reg_64(1));
 
         Ok(())
     }
